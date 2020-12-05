@@ -35,4 +35,4 @@ data <- inner_join(clients, loans, by='ID')
 
 # Wstęp
 
-Tutaj będzie wstęp.
+Poniższy raport będzie zawierał analizę modelu ryzyka kredytowego.
