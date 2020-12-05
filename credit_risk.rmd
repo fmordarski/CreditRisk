@@ -1,0 +1,38 @@
+---
+title: "Credit Risk"
+author: "Filip Mordarski & Mateusz Wasielewski"
+date: "5 12 2020"
+header-includes:
+  - \usepackage[polish]{babel}
+output: 
+  pdf_document:
+toc: true
+toc_depth: 2
+number_sections: true
+---
+
+```{r, include=FALSE}
+
+library(generator)
+library(dplyr)
+library(rjson)
+rm(list = ls())
+
+# paths
+#################################################
+base_path <- getwd()
+output_path <- paste0(base_path, "/data")
+
+# libnames
+#################################################
+
+
+clients <- read.csv2(paste0(output_path, "/clients.csv"))
+loans <- read.csv2(paste0(output_path, "/loans.csv"))
+
+data <- inner_join(clients, loans, by='ID')
+```
+
+# Wstęp
+
+Tutaj będzie wstęp.
