@@ -30,9 +30,37 @@ output_path <- paste0(base_path, "/data")
 clients <- read.csv2(paste0(output_path, "/clients.csv"))
 loans <- read.csv2(paste0(output_path, "/loans.csv"))
 
-data <- inner_join(clients, loans, by='ID')
+data <- left_join(clients, loans)
 ```
 
 # Wstęp
 
 Poniższy raport będzie zawierał analizę modelu ryzyka kredytowego.
+
+```{r, include=FALSE}
+# tworzenie zmiennych
+set.seed(1892)
+# sprawdzamy czas trwania umow
+agreement_time <- abs(as.numeric((Sys.Date()-as.Date(data$agreement_start))/365))
+summary(agreement_time)
+data$age <- round(agreement_time+2+rgamma(5000,shape=5,scale=1),0) 
+unique(data$age)
+summary(data$age)
+plot(density(data$age))
+
+
+data$salary_gross <- round(rnorm(5000,5230,500),0)
+plot(density(data$salary_gross))
+summary(data$salary_gross)
+
+data$single <- sample.int(2,5000,replace = T)-1
+unique(data$single)
+data$in_relation <- sample.int(2,5000,replace = T)-1
+unique(data$in_relation)
+
+data$kids <- round(rgamma(5000,shape=2,scale=0.6),0)
+unique(data$kids)
+plot(density(data$kids))
+hist(data$kids)
+
+```
