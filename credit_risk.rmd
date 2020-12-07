@@ -42,29 +42,56 @@ Poniższy raport będzie zawierał analizę modelu ryzyka kredytowego.
 
 W pierwszej kolejności zostały utworzone zmienne objaśniające potrzebne do modelu PD. Pierwszą zmienną, która została wygenerowana na podstawie utworzonych wcześniej zmiennych jest wiek. Został wyliczony okres trwania umowy w latach na podstawie różnicy między obecną datą a wartością w zmiennej *agreement_start*. Następnie został wygenerowany wektor wartości z rozkładu gamma z parametrem kształtu równym 3 oraz parametrem skali równym 2. Wiek został wyznaczony dodając do siebie: czas trwania umowy, liczbę 18 (wiek kiedy człowiek może podpisać wiążącą umowę kredytową) oraz wylosowaną wartość z rozkładu gamma, oznaczającą różnicę w latach pomiędzy datą podpisania umowy a osiągnięciem pełnoletności. Poniższy wykres przedstawia gęstość tej utworzonej zmiennej w naszym zbiorze.
 
-```{r, include=FALSE}
+```{r, echo=FALSE}
 # tworzenie zmiennych
 set.seed(1892)
 # sprawdzamy czas trwania umow
 agreement_time <- abs(as.numeric((Sys.Date()-as.Date(data$agreement_start))/365))
-data$age <- round(agreement_time+18+rgamma(5000,shape=3,scale=2),0)
+data$age <- round(agreement_time+18+rgamma(5000,shape=5,scale=1),0)
 plot(density(data$age))
 ```
 
-Następnie została wygenerowana zmienna, oznaczająca roczny dochód klienta. Wartości te zostały wylosowane z rozkładu normalnego, gdzie średnia została przyjęta na poziomie 87,864 USD (na podst)
+Następnie została wygenerowana zmienna, która określa czy dany pracownik jest zatrudniony, czy też nie. Prawdopodobieństwo bezrobocia zostało ustalone na poziomie 3.6 %. Wartość ta odzwierciedla średnią stopę bezrobocia w 2019 roku w Stanach Zjednoczonych. Poniższy wykres przedstawia histogram tej zmiennej w zbiorze.
 
-data$salary_gross <- round(rnorm(5000,5230,500),0)
-plot(density(data$salary_gross))
-summary(data$salary_gross)
 
-data$single <- sample.int(2,5000,replace = T)-1
-unique(data$single)
-data$in_relation <- sample.int(2,5000,replace = T)-1
-unique(data$in_relation)
+```{r, echo=FALSE}
+data$employed <- sample.int(2, 5000, replace = T, prob = c(0.036, 0.964))-1
+hist(data$employed)
+```
 
-data$kids <- round(rgamma(5000,shape=2,scale=0.6),0)
-unique(data$kids)
-plot(density(data$kids))
+Na podstawie zmiennej, określającej czy dana osoba jest zatrudniona, wygenerowano zmienną czy dana osoba jest zatrudniona na pełny etat. Prawdopodobieństwo tego wynosi 80 %. Poniższy wykres przedstawia histogram tej zmiennej
+
+```{r, echo=F}
+data$full_time <- 0
+data[data$employed==1,"full_time"] <- sample.int(2, nrow(data[data$employed==1,]), replace = T, prob = c(0.2, 0.8))-1
+hist(data$full_time)
+```
+Zmienną, która z pewnością może okazać się istotna w tworzeniu modelu PD jest dochód roczny danej osoby. Wartości te zostały wylosowane z rozkładu normalnego. Średnia dla osób zatrudnionych na pełen etat została ustalona na poziomie 48000 USD z odchyleniem standardowym na poziomie 10000 USD. Dla osób niezatrudnionych na pełen etat wartość średnia została ustalona na poziomie 15000 USD, natomiast odchylenie 3000 USD. Poniżej zaprezentowano wykres gęstości tej zmiennej.
+
+```{r, echo=F}
+data$annual_income <- round(rnorm(5000,48000,10000),0)
+data[data$full_time==0,"annual_income"] <- round(rnorm(nrow(data[data$full_time==0,]),15000,3000),0)
+plot(density(data$annual_income))
+```
+Kolejno, została wygenerowana zmienna, mówiąca o tym czy dana osoba jest singlem, czy żyje w związku z inną osobą. Prawdopodobieństwo, że ktoś jest singlem w Stanach Zjednoczoncyh wynosi 50.2 %. Przedstawiono histogram tej zmiennej w zbiorze.
+
+```{r, echo=F}
+data$single <- sample.int(2,5000,replace = T, prob = c(0.502, 0.498))-1
+hist(data$single)
+```
+
+Następnie, została wygenerowana liczba posiadanych dzieci przez daną osobą. Zmienna ta została wygenerowana na podstawie zmiennej, określającej czy dana osoba jest singlem czy nie jest. Poniżej przedstawiono histogram tej wygenerowanej zmiennej.
+
+```{r, echo=F}
+data$kids <- round(rgamma(5000,shape=2,scale=0.8),0)
+data[data$single==0, 'kids'] = round(rgamma(nrow(data[data$single==0,]),shape=1,scale=0.3),0)
 hist(data$kids)
+```
+
+```{r, echo=F}
+# Rodzaj umowy (do 1 kwartyla wieksze prawdopodobienstwo)
+# Liczba samochodów
+# Sektor gospodarki
+
 
 ```
