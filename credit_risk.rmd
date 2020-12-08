@@ -49,7 +49,7 @@ set.seed(1892)
 # sprawdzamy czas trwania umow
 agreement_time <- abs(as.numeric((Sys.Date()-as.Date(data$agreement_start))/365))
 data$age <- round(agreement_time+18+rgamma(5000,shape=5,scale=1),0)
-plot(density(data$age), main='Wykres gęstości wieku', xlab='Gęstość')
+plot(density(data$age), main='Wykres gęstości wieku', ylab='Gęstość')
 ```
 
 Następnie została wygenerowana zmienna, która określa czy dany pracownik jest zatrudniony, czy też nie. Prawdopodobieństwo bezrobocia zostało ustalone na poziomie 3.6 %. Wartość ta odzwierciedla średnią stopę bezrobocia w 2019 roku w Stanach Zjednoczonych. Poniższy wykres przedstawia histogram tej zmiennej w zbiorze.
@@ -82,7 +82,7 @@ Zmienną, która z pewnością może okazać się istotna w tworzeniu modelu PD 
 options(scipen=10000)
 data$annual_income <- round(rnorm(5000,48000,10000),0)
 data[data$full_time==0,"annual_income"] <- round(rnorm(nrow(data[data$full_time==0,]),15000,3000),0)
-plot(density(data$annual_income), main='Wykres gęstości zarobków', xlab='Gęstość')
+plot(density(data$annual_income), main='Wykres gęstości zarobków', ylab='Gęstość')
 ```
 Kolejno, została wygenerowana zmienna, mówiąca o tym czy dana osoba jest singlem, czy żyje w związku z inną osobą. Prawdopodobieństwo, że ktoś jest singlem w Stanach Zjednoczoncyh wynosi 50.2 %. Przedstawiono histogram tej zmiennej w zbiorze.
 
@@ -107,21 +107,27 @@ ggplot(data, aes(x = factor(kids))) +
   theme_minimal()
 ```
 
+Kolejno, została wygenerowana zmienna, mówiąca o liczbie posiadanych samochodów przez klienta. Dla osób nieposiadających dzieci lub mających jedno dziecko, liczba ta została wylosowana z następującego zakresu: [0, 1, 2] z prawdopodobieństwami równymi kolejno: [40%, 50%, 10%]. Dla klientów mających więcej niż jedno dziecko, liczba samochodów zależy od liczby posiadanych dzieci i jest obliczona za pomocą następującej formuły: liczba_dzieci - [wartość z losowania liczb [1,2] z 50% prawdopodobieństwami] + 1. Poniżej przedstawiono histogram liczby posiadanych samochodów przez klientów.
+
 ```{r, echo=F}
-# Rodzaj umowy (do 1 kwartyla wieksze prawdopodobienstwo)
-# Liczba samochodów
-# Sektor gospodarki
 
-data$contract <- 0
-data[data$annual_income > quantile(data$annual_income,probs=0.25),
-     "contract"] <- sample.int(2, nrow(data[data$annual_income > quantile(data$annual_income,probs = 0.25),]), replace = T, prob = c(0.2, 0.8))-1
 
-data$car <- sample.int(2,5000,replace = T)-1
+data$car <- sample.int(3,5000,replace = T, prob=c(0.4, 0.5, 0.1))-1
 data[data$kids>1,"car"] <- data$kids[data$kids>1] - sample.int(2,nrow(data[data$kids>1,]),replace = T)+1
-summary(data$car)
-plot(density(data$car))
+ggplot(data, aes(x = factor(car))) +
+  geom_bar(fill = "#0073C2FF", stat = "count")+
+  labs(title='Histogram liczby posiadanych samochodów',x='', y="Częstość")+
+  theme_minimal()
+```
 
-data$sector <- sample.int(3,5000,replace = T, prob = c(0.2,0.3,0.5))
-summary(data$sector)
-plot(density(data$sector))
+Następnie, została wygenerowana zmienna, określająca sektor gospodarki, w którym pracują klienci. Prawdopodobieństwo wystąpienia następujących sektorów [rolnictwo, przemysł, usługi] wśród zatrudnionych wynosi kolejno: [20%, 30%, 50%]. Poniżej przedstawiono histogram sektorów gospodarki. 
+
+```{r, echo=F}
+# data$sector <- "Brak zatrudnienia"
+data[data$employed==1, 'sector'] <- sample.int(3,nrow(data[data$employed==1,]),replace = T, prob = c(0.2,0.3,0.5))
+ggplot(data%>%filter(employed==1), aes(x = factor(sector))) +
+  geom_bar(fill = "#0073C2FF", stat = "count")+
+  labs(title='Histogram sektorów gospodarki',x='', y="Częstość")+
+  theme_minimal() +
+  scale_x_discrete(labels=c('Rolnictwo', 'Przemysł', 'Usługi'))
 ```
