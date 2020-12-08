@@ -94,6 +94,16 @@ hist(data$kids)
 # Rodzaj umowy (do 1 kwartyla wieksze prawdopodobienstwo)
 # Liczba samochodów
 # Sektor gospodarki
-data$contract <- 
+data$contract <- 0
+data[data$annual_income > quantile(data$annual_income,probs=0.25),
+     "contract"] <- sample.int(2, nrow(data[data$annual_income > quantile(data$annual_income,probs = 0.25),]), replace = T, prob = c(0.2, 0.8))-1
 
+data$car <- sample.int(2,5000,replace = T)-1
+data[data$kids>1,"car"] <- data$kids[data$kids>1] - sample.int(2,nrow(data[data$kids>1,]),replace = T)+1
+summary(data$car)
+plot(density(data$car))
+
+data$sector <- sample.int(3,5000,replace = T, prob = c(0.2,0.3,0.5))
+summary(data$sector)
+plot(density(data$sector))
 ```
