@@ -2,10 +2,8 @@
 title: "Credit Risk"
 author: "Filip Mordarski & Mateusz Wasielewski"
 date: "5 12 2020"
-output:
-  html_document:
-    df_print: paged
-  pdf_document: null
+output: 
+  pdf_document:
 header-includes: \usepackage[polish]{babel}
 toc: yes
 toc_depth: 2
@@ -17,11 +15,12 @@ number_sections: yes
 library(generator)
 library(dplyr)
 library(rjson)
+library(ggplot2)
 rm(list = ls())
 
 # paths
 #################################################
-setwd("C:\\Users\\pc\\Desktop\\Ekonometria finansowa\\CredRisk\\CreditRisk")
+
 base_path <- getwd()
 output_path <- paste0(base_path, "/data")
 
@@ -44,42 +43,56 @@ Poniższy raport będzie zawierał analizę modelu ryzyka kredytowego.
 
 W pierwszej kolejności zostały utworzone zmienne objaśniające potrzebne do modelu PD. Pierwszą zmienną, która została wygenerowana na podstawie utworzonych wcześniej zmiennych jest wiek. Został wyliczony okres trwania umowy w latach na podstawie różnicy między obecną datą a wartością w zmiennej *agreement_start*. Następnie został wygenerowany wektor wartości z rozkładu gamma z parametrem kształtu równym 3 oraz parametrem skali równym 2. Wiek został wyznaczony dodając do siebie: czas trwania umowy, liczbę 18 (wiek kiedy człowiek może podpisać wiążącą umowę kredytową) oraz wylosowaną wartość z rozkładu gamma, oznaczającą różnicę w latach pomiędzy datą podpisania umowy a osiągnięciem pełnoletności. Poniższy wykres przedstawia gęstość tej utworzonej zmiennej w naszym zbiorze.
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, include=T}
 # tworzenie zmiennych
 set.seed(1892)
 # sprawdzamy czas trwania umow
 agreement_time <- abs(as.numeric((Sys.Date()-as.Date(data$agreement_start))/365))
 data$age <- round(agreement_time+18+rgamma(5000,shape=5,scale=1),0)
-plot(density(data$age))
+plot(density(data$age), main='Wykres gęstości wieku', ylab='Gęstość')
 ```
 
 Następnie została wygenerowana zmienna, która określa czy dany pracownik jest zatrudniony, czy też nie. Prawdopodobieństwo bezrobocia zostało ustalone na poziomie 3.6 %. Wartość ta odzwierciedla średnią stopę bezrobocia w 2019 roku w Stanach Zjednoczonych. Poniższy wykres przedstawia histogram tej zmiennej w zbiorze.
 
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, include=T}
 data$employed <- sample.int(2, 5000, replace = T, prob = c(0.036, 0.964))-1
-hist(data$employed)
+
+ggplot(data, aes(x = factor(employed))) +
+  geom_bar(fill = "#0073C2FF", stat = "count")+
+  scale_x_discrete(breaks=c(0,1), labels=c("Nie", "Tak"))+
+  labs(title='Histogram zmiennej, określająca czy klient jest zatrudniony',x='', y="Częstość")+
+  theme_minimal()
 ```
 
-Na podstawie zmiennej, określającej czy dana osoba jest zatrudniona, wygenerowano zmienną czy dana osoba jest zatrudniona na pełny etat. Prawdopodobieństwo tego wynosi 80 %. Poniższy wykres przedstawia histogram tej zmiennej
+Na podstawie zmiennej, określającej czy dana osoba jest zatrudniona, wygenerowano zmienną czy dana osoba jest zatrudniona na pełny etat. Prawdopodobieństwo tego wynosi 80 %. Poniższy wykres przedstawia histogram tej zmiennej.
 
 ```{r, echo=F}
 data$full_time <- 0
 data[data$employed==1,"full_time"] <- sample.int(2, nrow(data[data$employed==1,]), replace = T, prob = c(0.2, 0.8))-1
-hist(data$full_time)
+ggplot(data, aes(x = factor(full_time))) +
+  geom_bar(fill = "#0073C2FF", stat = "count")+
+  scale_x_discrete(breaks=c(0,1), labels=c("Nie", "Tak"))+
+  labs(title='Histogram zmiennej, określająca czy klient pracuje na pełen etat',x='', y="Częstość")+
+  theme_minimal()
 ```
 Zmienną, która z pewnością może okazać się istotna w tworzeniu modelu PD jest dochód roczny danej osoby. Wartości te zostały wylosowane z rozkładu normalnego. Średnia dla osób zatrudnionych na pełen etat została ustalona na poziomie 48000 USD z odchyleniem standardowym na poziomie 10000 USD. Dla osób niezatrudnionych na pełen etat wartość średnia została ustalona na poziomie 15000 USD, natomiast odchylenie 3000 USD. Poniżej zaprezentowano wykres gęstości tej zmiennej.
 
 ```{r, echo=F}
+options(scipen=10000)
 data$annual_income <- round(rnorm(5000,48000,10000),0)
 data[data$full_time==0,"annual_income"] <- round(rnorm(nrow(data[data$full_time==0,]),15000,3000),0)
-plot(density(data$annual_income))
+plot(density(data$annual_income), main='Wykres gęstości zarobków', ylab='Gęstość')
 ```
 Kolejno, została wygenerowana zmienna, mówiąca o tym czy dana osoba jest singlem, czy żyje w związku z inną osobą. Prawdopodobieństwo, że ktoś jest singlem w Stanach Zjednoczoncyh wynosi 50.2 %. Przedstawiono histogram tej zmiennej w zbiorze.
 
 ```{r, echo=F}
 data$single <- sample.int(2,5000,replace = T, prob = c(0.502, 0.498))-1
-hist(data$single)
+ggplot(data, aes(x = factor(single))) +
+  geom_bar(fill = "#0073C2FF", stat = "count")+
+  scale_x_discrete(breaks=c(0,1), labels=c("Nie", "Tak"))+
+  labs(title='Histogram zmiennej, określająca czy klient jest singlem',x='', y="Częstość")+
+  theme_minimal()
 ```
 
 Następnie, została wygenerowana liczba posiadanych dzieci przez daną osobą. Zmienna ta została wygenerowana na podstawie zmiennej, określającej czy dana osoba jest singlem czy nie jest. Poniżej przedstawiono histogram tej wygenerowanej zmiennej.
@@ -87,24 +100,34 @@ Następnie, została wygenerowana liczba posiadanych dzieci przez daną osobą. 
 ```{r, echo=F}
 data$kids <- round(rgamma(5000,shape=2,scale=0.8),0)
 data[data$single==0, 'kids'] = round(rgamma(nrow(data[data$single==0,]),shape=1,scale=0.3),0)
-hist(data$kids)
+data$single <- sample.int(2,5000,replace = T, prob = c(0.502, 0.498))-1
+ggplot(data, aes(x = factor(kids))) +
+  geom_bar(fill = "#0073C2FF", stat = "count")+
+  labs(title='Histogram liczby posiadanych dzieci',x='', y="Częstość")+
+  theme_minimal()
 ```
 
+Kolejno, została wygenerowana zmienna, mówiąca o liczbie posiadanych samochodów przez klienta. Dla osób nieposiadających dzieci lub mających jedno dziecko, liczba ta została wylosowana z następującego zakresu: [0, 1, 2] z prawdopodobieństwami równymi kolejno: [40%, 50%, 10%]. Dla klientów mających więcej niż jedno dziecko, liczba samochodów zależy od liczby posiadanych dzieci i jest obliczona za pomocą następującej formuły: liczba_dzieci - [wartość z losowania liczb [1,2] z 50% prawdopodobieństwami] + 1. Poniżej przedstawiono histogram liczby posiadanych samochodów przez klientów.
+
 ```{r, echo=F}
-# Rodzaj umowy (do 1 kwartyla wieksze prawdopodobienstwo)
-# Liczba samochodów
-# Sektor gospodarki
 
-data$contract <- 0
-data[data$annual_income > quantile(data$annual_income,probs=0.25),
-     "contract"] <- sample.int(2, nrow(data[data$annual_income > quantile(data$annual_income,probs = 0.25),]), replace = T, prob = c(0.2, 0.8))-1
 
-data$car <- sample.int(2,5000,replace = T)-1
+data$car <- sample.int(3,5000,replace = T, prob=c(0.4, 0.5, 0.1))-1
 data[data$kids>1,"car"] <- data$kids[data$kids>1] - sample.int(2,nrow(data[data$kids>1,]),replace = T)+1
-summary(data$car)
-plot(density(data$car))
+ggplot(data, aes(x = factor(car))) +
+  geom_bar(fill = "#0073C2FF", stat = "count")+
+  labs(title='Histogram liczby posiadanych samochodów',x='', y="Częstość")+
+  theme_minimal()
+```
 
-data$sector <- sample.int(3,5000,replace = T, prob = c(0.2,0.3,0.5))
-summary(data$sector)
-plot(density(data$sector))
+Następnie, została wygenerowana zmienna, określająca sektor gospodarki, w którym pracują klienci. Prawdopodobieństwo wystąpienia następujących sektorów [rolnictwo, przemysł, usługi] wśród zatrudnionych wynosi kolejno: [20%, 30%, 50%]. Poniżej przedstawiono histogram sektorów gospodarki. 
+
+```{r, echo=F}
+# data$sector <- "Brak zatrudnienia"
+data[data$employed==1, 'sector'] <- sample.int(3,nrow(data[data$employed==1,]),replace = T, prob = c(0.2,0.3,0.5))
+ggplot(data%>%filter(employed==1), aes(x = factor(sector))) +
+  geom_bar(fill = "#0073C2FF", stat = "count")+
+  labs(title='Histogram sektorów gospodarki',x='', y="Częstość")+
+  theme_minimal() +
+  scale_x_discrete(labels=c('Rolnictwo', 'Przemysł', 'Usługi'))
 ```
