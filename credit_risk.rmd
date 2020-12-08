@@ -94,6 +94,7 @@ hist(data$kids)
 # Rodzaj umowy (do 1 kwartyla wieksze prawdopodobienstwo)
 # Liczba samochodów
 # Sektor gospodarki
+
 data$contract <- 0
 data[data$annual_income > quantile(data$annual_income,probs=0.25),
      "contract"] <- sample.int(2, nrow(data[data$annual_income > quantile(data$annual_income,probs = 0.25),]), replace = T, prob = c(0.2, 0.8))-1
