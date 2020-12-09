@@ -136,7 +136,7 @@ W celu sprawdzenia czy zmienne objaśniajce mają wiele wartości odstających, 
 
 ```{r, echo=F}
 contin_vars <- data%>%
-  select(value_mortgage,value_nonmortgage,age,annual_income,kids,car)
+  select(value_mortgage,value_nonmortgage,age,annual_income)
 y <- c()
 kurtozy <- function (x)
 {
@@ -149,7 +149,7 @@ kurtozy <- function (x)
 kable(t(kurtozy(contin_vars)),col.names = names(contin_vars), caption="Zestawienie wartości kurtozy zmiennych objaśniających")
 
 ```
-Z powyższej tabeli wynika, że dla wartości kredytu hipotecznego oraz wartości kredytu bez hipoteki kurtozy wyniosły ok. 5.5. Nieco większą wartość przyjęła ta miara dla zmiennych liczby dzieci- 6.3, a największą dla liczby aut pracownika- 7.2. Dla pozostałych zmiennych ciągłych możemy przyjąć normalność rozkładów.
+Z powyższej tabeli wynika, że dla wartości kredytu hipotecznego oraz wartości kredytu bez hipoteki kurtozy wyniosły ok. 5.5, a co za tym idzie, przekraczają ustaloną wartość graniczną. Jest to spowodowane licznymi wartościami odstającymi, których wpływ na analizę trzeba zminimalizować. Istnieją różne metody radzenia sobie z tzw. "outliersami", jedna z nich zostanie przedstawiona w następnym akapicie. Dla zmiennych wiek oraz roczny przychód wartość kurtozy jest mniejsza od 3, co pozwala zakładać normalność rozkładów tych zmiennych.
 
 # Winsoryzacja zmiennych zaburzonych nietypowymi wartosciami
 
@@ -169,10 +169,8 @@ winsor1 <- function (x, fraction=.05)
 
 data$value_mortgage_win <- winsor1(data$value_mortgage)
 data$value_nonmortgage_win <- winsor1(data$value_nonmortgage)
-data$kids_win <- winsor1(data$kids)
-data$car_win <- winsor1(data$car)
 conti_win <- data%>%
-  select(value_mortgage_win,value_nonmortgage_win, kids_win, car_win)
+  select(value_mortgage_win,value_nonmortgage_win)
 
 kable(t(kurtozy(conti_win)),col.names = names(conti_win), caption="Wartości kurtozy zmiennych po winsoryzacji")
 
