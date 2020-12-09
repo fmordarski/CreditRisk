@@ -17,7 +17,9 @@ library(rjson)
 library(ggplot2)
 library(moments)
 library(knitr)
-
+library(caret)
+library(ROCR)
+knitr::opts_chunk$set(fig.width=6, fig.height=3.5, fig.align = "center", warning = F) 
 # paths
 #################################################
 
@@ -39,6 +41,7 @@ data <- data[-8]
 
 Poniższy raport będzie zawierał analizę modelu ryzyka kredytowego.
 
+\newpage
 # Tworzenie zmiennych objaśniających
 
 W pierwszej kolejności zostały utworzone zmienne objaśniające potrzebne do modelu PD. Pierwszą zmienną, która została wygenerowana na podstawie utworzonych wcześniej zmiennych jest wiek. Został wyliczony okres trwania umowy w latach na podstawie różnicy między obecną datą a wartością w zmiennej *agreement_start*. Następnie został wygenerowany wektor wartości z rozkładu gamma z parametrem kształtu równym 3 oraz parametrem skali równym 2. Wiek został wyznaczony dodając do siebie: czas trwania umowy, liczbę 18 (wiek kiedy człowiek może podpisać wiążącą umowę kredytową) oraz wylosowaną wartość z rozkładu gamma, oznaczającą różnicę w latach pomiędzy datą podpisania umowy a osiągnięciem pełnoletności. Poniższy wykres przedstawia gęstość tej utworzonej zmiennej w naszym zbiorze.
@@ -52,11 +55,11 @@ data$age <- round(agreement_time+18+rgamma(5000,shape=5,scale=1),0)
 plot(density(data$age), main='Wykres gęstości wieku', ylab='Gęstość')
 ```
 
-Następnie została wygenerowana zmienna, która określa czy dany pracownik jest zatrudniony, czy też nie. Prawdopodobieństwo bezrobocia zostało ustalone na poziomie 3.6 %. Wartość ta odzwierciedla średnią stopę bezrobocia w 2019 roku w Stanach Zjednoczonych. Poniższy wykres przedstawia histogram tej zmiennej w zbiorze.
+Następnie została wygenerowana zmienna, która określa czy dany pracownik jest zatrudniony, czy też nie. Prawdopodobieństwo bezrobocia zostało ustalone na poziomie 6.7 %. Wartość ta odzwierciedla średnią stopę bezrobocia w 2019 roku w Stanach Zjednoczonych. Poniższy wykres przedstawia histogram tej zmiennej w zbiorze.
 
 
 ```{r, echo=FALSE, include=T}
-data$employed <- sample.int(2, 5000, replace = T, prob = c(0.036, 0.964))-1
+data$employed <- sample.int(2, 5000, replace = T, prob = c(0.067, 0.933))-1
 
 ggplot(data, aes(x = factor(employed))) +
   geom_bar(fill = "#0073C2FF", stat = "count")+
@@ -76,18 +79,20 @@ ggplot(data, aes(x = factor(full_time))) +
   labs(title='Histogram zmiennej, określająca czy klient pracuje na pełen etat',x='', y="Częstość")+
   theme_minimal()
 ```
-Zmienną, która z pewnością może okazać się istotna w tworzeniu modelu PD jest dochód roczny danej osoby. Wartości te zostały wylosowane z rozkładu normalnego. Średnia dla osób zatrudnionych na pełen etat została ustalona na poziomie 48000 USD z odchyleniem standardowym na poziomie 10000 USD. Dla osób niezatrudnionych na pełen etat wartość średnia została ustalona na poziomie 15000 USD, natomiast odchylenie 3000 USD. Poniżej zaprezentowano wykres gęstości tej zmiennej.
+
+Zmienną, która z pewnością może okazać się istotna w tworzeniu modelu PD jest dochód roczny danej osoby. Wartości te zostały wylosowane z rozkładu normalnego. Średnia dla osób zatrudnionych na pełen etat została ustalona na poziomie 48000 USD z odchyleniem standardowym na poziomie 15000 USD. Dla osób niezatrudnionych na pełen etat wartość średnia została ustalona na poziomie 20000 USD, natomiast odchylenie 10000 USD. Poniżej zaprezentowano wykres gęstości tej zmiennej.
 
 ```{r, echo=F}
 options(scipen=10000)
-data$annual_income <- round(rnorm(5000,48000,10000),0)
-data[data$full_time==0,"annual_income"] <- round(rnorm(nrow(data[data$full_time==0,]),15000,3000),0)
+data$annual_income <- abs(round(rnorm(5000,48000,40000),0))
+data[data$full_time==0,"annual_income"] <- abs(round(rnorm(nrow(data[data$full_time==0,]),20000,10000),0))
 plot(density(data$annual_income), main='Wykres gęstości zarobków', ylab='Gęstość')
 ```
-Kolejno, została wygenerowana zmienna, mówiąca o tym czy dana osoba jest singlem, czy żyje w związku z inną osobą. Prawdopodobieństwo, że ktoś jest singlem w Stanach Zjednoczoncyh wynosi 50.2 %. Przedstawiono histogram tej zmiennej w zbiorze.
+
+Kolejno, została wygenerowana zmienna, mówiąca o tym czy dana osoba jest singlem, czy żyje w związku z inną osobą. Prawdopodobieństwo, że ktoś jest singlem w Stanach Zjednoczoncyh wynosi 30 %. Przedstawiono histogram tej zmiennej w zbiorze.
 
 ```{r, echo=F}
-data$single <- sample.int(2,5000,replace = T, prob = c(0.502, 0.498))-1
+data$single <- sample.int(2,5000,replace = T, prob = c(0.7, 0.3))-1
 ggplot(data, aes(x = factor(single))) +
   geom_bar(fill = "#0073C2FF", stat = "count")+
   scale_x_discrete(breaks=c(0,1), labels=c("Nie", "Tak"))+
@@ -149,11 +154,13 @@ kurtozy <- function (x)
 kable(t(kurtozy(contin_vars)),col.names = names(contin_vars), caption="Zestawienie wartości kurtozy zmiennych objaśniających")
 
 ```
-Z powyższej tabeli wynika, że dla wartości kredytu hipotecznego oraz wartości kredytu bez hipoteki kurtozy wyniosły ok. 5.5, a co za tym idzie, przekraczają ustaloną wartość graniczną. Jest to spowodowane licznymi wartościami odstającymi, których wpływ na analizę trzeba zminimalizować. Istnieją różne metody radzenia sobie z tzw. "outliersami", jedna z nich zostanie przedstawiona w następnym akapicie. Dla zmiennych wiek oraz roczny przychód wartość kurtozy jest mniejsza od 3, co pozwala zakładać normalność rozkładów tych zmiennych.
+
+Z powyższej tabeli wynika, że dla wartości kredytu hipotecznego oraz wartości kredytu bez hipoteki kurtozy wyniosły ok. 5.5, a co za tym idzie, przekraczają ustaloną wartość graniczną. Jest to spowodowane licznymi wartościami odstającymi, których wpływ na analizę trzeba zminimalizować. Niepokojąca wartość kurtozy występuje zarówno przy zmiennej roczny przychód, ponieważ wynosi powyżej 3. Istnieją różne metody radzenia sobie z tzw. "outliersami", jedna z nich zostanie przedstawiona w następnym akapicie. Dla zmiennej wiek wartość kurtozy jest mniejsza od 3, co pozwala zakładać normalność rozkładu tej zmiennej.
 
 # Winsoryzacja zmiennych zaburzonych nietypowymi wartosciami
 
-Podczas procesu winsoryzacji wartości odstające nie są usuwane, a jedynie podmieniane na ostatnie wartości znajdujące się w nieobciętym obszarze, dzięki czemu nie tracimy liczby obserwacji. W tym przypadku odcięte zostały skrajne obszary 5-procentowe. Poniższa tabela prezentuje wartości kurtozy po winsoryzacji tych czterech zmiennych ciągłych, których wspomniana miara spłaszczenia była większa od 3.
+Podczas procesu winsoryzacji wartości odstające nie są usuwane, a jedynie podmieniane na ostatnie wartości znajdujące się w nieobciętym obszarze, dzięki czemu nie tracimy liczby obserwacji. W tym przypadku odcięte zostały skrajne obszary 5-procentowe. Poniższa tabela prezentuje wartości kurtozy po winsoryzacji tych trzech zmiennych ciągłych, których wspomniana miara spłaszczenia była większa od 3.
+
 ```{r, echo=F}
 winsor1 <- function (x, fraction=.05)
 {
@@ -169,14 +176,22 @@ winsor1 <- function (x, fraction=.05)
 
 data$value_mortgage_win <- winsor1(data$value_mortgage)
 data$value_nonmortgage_win <- winsor1(data$value_nonmortgage)
+data$annual_income_win <- winsor1(data$annual_income)
 conti_win <- data%>%
-  select(value_mortgage_win,value_nonmortgage_win)
+  select(value_mortgage_win,value_nonmortgage_win, annual_income_win)
 
 kable(t(kurtozy(conti_win)),col.names = names(conti_win), caption="Wartości kurtozy zmiennych po winsoryzacji")
 
 ```
+
 Można zauważyć znaczną poprawę rozkładów zmiennych, co pozytywnie wpłynie na dalszą analizę.
+
 ```{r, echo=F}
+data$employed <- factor(data$employed)
+data$full_time <- factor(data$full_time)
+data$single <- factor(data$single)
+data[is.na(data$sector), "sector"] <- 0
+data$sector <- factor(data$sector)
 test_prop <- 0.3
 test.set.index <- (runif(nrow(data)) < test_prop)
 test <- data[test.set.index, ]
@@ -185,6 +200,50 @@ train <- data[!test.set.index, ]
 summary(train)
 summary(test)
 names(data)
-model <- glm(default ~ value_mortgage_win+value_nonmortgage_win+ age+employed+full_time+annual_income+single+kids_win+car_win, family = binomial(link = 'logit'), data = train)
+model <- glm(default ~ value_mortgage_win+value_nonmortgage_win+age+employed+full_time+
+               annual_income_win+single+kids+car+sector, family = binomial(link = 'logit'), data = train)
 summary(model)
+```
+
+Oszacowano również drugi model, w którym zmieniliśmy założenie co do rozkładu składnika losowego. W wyniku tego, został oszacowany model probitowy.
+
+```{r, echo=F}
+model2 <- glm(default ~ value_mortgage_win+value_nonmortgage_win+age+employed+full_time+
+               annual_income_win+single+kids+car+sector, family = binomial(link = 'probit'), data = train)
+summary(model2)
+```
+
+# Ewaluacja modelu
+
+Po oszacowaniu obu modelów, dokonano ich ewaluacji. Poniżej przedstawiono tabelę kontyngencji dla pierwszego modelu logitowego.
+
+```{r, echo=F}
+predict <- predict(model, type = 'response', newdata = test)
+predict <- ifelse(predict<0.5, 0, 1)
+confusionMatrix(data=factor(predict), reference=factor(test$default))
+```
+
+Następnie wygenerowano podobną tabelę kontyngencji dla drugiego modelu logitowego.
+
+```{r, echo=F}
+predict <- predict(model2, type = 'response', newdata = test)
+predict <- ifelse(predict<0.5, 0, 1)
+confusionMatrix(data=factor(predict), reference=factor(test$default))
+```
+Model ten dostarcza takich samych predykcji jak model pierwszy. Z tego względu dalsza analiza będzie opierać się na oszacowaniach jednego z powyższych modeli.
+
+Na podstawie powyższych tabel możemy stwierdzić, że nasze modele nie są efektywne w predykcji 'defaultu'. Wszystkie obserwacje zostały dopasowane do kategorii 0, czyli brak 'defaultu'. Mamy relatywnie wysoki poziom trafności modeli, ponieważ jest on na poziomie 78 %. Przyczyną takiego stanu rzeczy, jest to że 78% obserwacji ze zbioru testowego nie miało 'defaultu'. Ewaluacja tych modeli wykazała, że nie powinniśmy wyciągać żadnych dalekoidących wniosków na podstawie ich oszacowania. Następnie została wygenerowana krzywa ROC.
+
+```{r, echo=F}
+ROCRpred_t <- prediction(predict, test$default)
+ROCRperf_t <- performance(ROCRpred_t, 'tpr','fpr')
+plot(ROCRperf_t, main='Krzywa ROC')
+```
+
+Powyższa krzywa obrazuje zdolność predykcyjną modelu dla różnych progów odcięcia. Wygląd powyższej krzywej pokrywa się z powyższą oceną modelów za pomocą tabel kontyngencji. Oszacowane modele są tak efektywne jak klasyfikator losowy. Z uwagi na to, że modele nie przewidują dla żadnego klienta wartości defaultu równego 1, czułość naszego modelu wynosi 100%, natomiast swoistość 0%. Z tego względu pole pod krzywą ROC wynosi 0.5, co potwierdza poniższy wydruk z R.
+
+```{r, echo=T, include=T}
+auc_t <- performance(ROCRpred_t, measure = "auc")
+auc_t <- auc_t@y.values[[1]]
+auc_t
 ```
