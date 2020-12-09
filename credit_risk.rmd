@@ -11,12 +11,12 @@ number_sections: yes
 ---
 
 ```{r, include=FALSE}
-
 library(generator)
 library(dplyr)
 library(rjson)
 library(ggplot2)
-rm(list = ls())
+library(moments)
+library(knitr)
 
 # paths
 #################################################
@@ -130,4 +130,63 @@ ggplot(data%>%filter(employed==1), aes(x = factor(sector))) +
   labs(title='Histogram sektorów gospodarki',x='', y="Częstość")+
   theme_minimal() +
   scale_x_discrete(labels=c('Rolnictwo', 'Przemysł', 'Usługi'))
+```
+# Badanie rozkładów zmiennych
+W celu sprawdzenia czy zmienne objaśniajce mają wiele wartości odstających, zbadano kurtozę każdej zmiennej ciągłej. Przyjęto, że dla tej miary spłaszczenia tolerowaną wartością będzie 3. 
+
+```{r, echo=F}
+contin_vars <- data%>%
+  select(value_mortgage,value_nonmortgage,age,annual_income,kids,car)
+y <- c()
+kurtozy <- function (x)
+{
+  for (i in 1:ncol(x)) {
+   y[i] <- kurtosis(x[i])
+  }
+  y
+}
+
+kable(t(kurtozy(contin_vars)),col.names = names(contin_vars), caption="Zestawienie wartości kurtozy zmiennych objaśniających")
+
+```
+Z powyższej tabeli wynika, że dla wartości kredytu hipotecznego oraz wartości kredytu bez hipoteki kurtozy wyniosły ok. 5.5. Nieco większą wartość przyjęła ta miara dla zmiennych liczby dzieci- 6.3, a największą dla liczby aut pracownika- 7.2. Dla pozostałych zmiennych ciągłych możemy przyjąć normalność rozkładów.
+
+# Winsoryzacja zmiennych zaburzonych nietypowymi wartosciami
+
+Podczas procesu winsoryzacji wartości odstające nie są usuwane, a jedynie podmieniane na ostatnie wartości znajdujące się w nieobciętym obszarze, dzięki czemu nie tracimy liczby obserwacji. W tym przypadku odcięte zostały skrajne obszary 5-procentowe. Poniższa tabela prezentuje wartości kurtozy po winsoryzacji tych czterech zmiennych ciągłych, których wspomniana miara spłaszczenia była większa od 3.
+```{r, echo=F}
+winsor1 <- function (x, fraction=.05)
+{
+  if(length(fraction) != 1 || fraction < 0 ||
+     fraction > 0.5) {
+    stop("bad value for 'fraction'")
+  }
+  lim <- quantile(x, probs=c(fraction, 1-fraction))
+  x[ x < lim[1] ] <- lim[1]
+  x[ x > lim[2] ] <- lim[2]
+  x
+}
+
+data$value_mortgage_win <- winsor1(data$value_mortgage)
+data$value_nonmortgage_win <- winsor1(data$value_nonmortgage)
+data$kids_win <- winsor1(data$kids)
+data$car_win <- winsor1(data$car)
+conti_win <- data%>%
+  select(value_mortgage_win,value_nonmortgage_win, kids_win, car_win)
+
+kable(t(kurtozy(conti_win)),col.names = names(conti_win), caption="Wartości kurtozy zmiennych po winsoryzacji")
+
+```
+Można zauważyć znaczną poprawę rozkładów zmiennych, co pozytywnie wpłynie na dalszą analizę.
+```{r, echo=F}
+test_prop <- 0.3
+test.set.index <- (runif(nrow(data)) < test_prop)
+test <- data[test.set.index, ]
+train <- data[!test.set.index, ]
+
+summary(train)
+summary(test)
+names(data)
+model <- glm(default ~ value_mortgage_win+value_nonmortgage_win+ age+employed+full_time+annual_income+single+kids_win+car_win, family = binomial(link = 'logit'), data = train)
+summary(model)
 ```
