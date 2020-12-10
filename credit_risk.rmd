@@ -247,7 +247,7 @@ plot(ROCRperf_t, main='Krzywa ROC')
 
 Powyższa krzywa obrazuje zdolność predykcyjną modelu dla różnych progów odcięcia. Wygląd powyższej krzywej pokrywa się z powyższą oceną modelów za pomocą tabel kontyngencji. Oszacowane modele są tak efektywne jak klasyfikator losowy. Z uwagi na to, że modele nie przewidują dla żadnego klienta wartości defaultu równego 1, czułość naszego modelu wynosi 100%, natomiast swoistość 0%. Z tego względu pole pod krzywą ROC wynosi 0.5, co potwierdza poniższy wydruk z R.
 
-```{r, echo=T, include=T}
+```{r, echo=F}
 auc_t <- performance(ROCRpred_t, measure = "auc")
 auc_t <- auc_t@y.values[[1]]
 auc_t
@@ -255,7 +255,7 @@ auc_t
 # Bootstrapping
 
 Ostatnim elementem pracy jest wyznaczenie bootstrapowych przedziałów ufności. Do obliczeń przyjęto 90 - procentowy przedział ufności i przeprowadzono 1000 obserwacji.
-```{r, echo=T, include=T}
+```{r, echo=F}
 N <- length(data$default)  # how long will be our new sample
 M <- 1000 # how many times we will generate new sample
 auc_vector <- c(1:M)  # starting values of AUC vector
@@ -264,7 +264,6 @@ alpha <- 0.1
 data$predict_boots <- predict(model, type = 'response', newdata = data)
 data$predict_boots <- ifelse(data$predict_boots<0.5, 0, 1)
 
-tic()
 
 for (i in 1:M){
   
@@ -282,7 +281,6 @@ for (i in 1:M){
     
 }
 
-toc()
 lower <- quantile(auc_vector, alpha / 2)
 
 upper <- quantile(auc_vector, 1 - (alpha / 2) )
