@@ -252,7 +252,7 @@ auc_t <- performance(ROCRpred_t, measure = "auc")
 auc_t <- auc_t@y.values[[1]]
 auc_t
 ```
-# bootstrapping
+# Bootstrapping
 
 Ostatnim elementem pracy jest wyznaczenie bootstrapowych przedziałów ufności. Do obliczeń przyjęto 90 - procentowy przedział ufności i przeprowadzono 1000 obserwacji.
 ```{r, echo=T, include=T}
