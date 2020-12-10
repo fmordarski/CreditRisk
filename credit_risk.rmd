@@ -39,7 +39,7 @@ data <- data[-8]
 
 # Wstęp
 
-Poniższy raport będzie zawierał analizę modelu ryzyka kredytowego.
+Poniższy raport będzie zawierał analizę modelu ryzyka kredytowego, oszacowanego na podstawie losowo wygenerowanego zbioru danych. Pierwsza część raportu będzie opisywała sposób losowania oraz rozkłady zmiennych objaśniających. Została przedstawiona również wizualizacja tych zmiennych. Następnie, została przeprowadzona 'winsoryzacja' w celu poprawy wyników naszej analizy. W kolejnej części raportu, zostały oszacowane dwa modele, ze zmienną objaśnianą, mówiącą czy dany klient doświadczy 'defaultu' czy nie. W ostatniej części raportu została przeprowadzona ewaluacja obu modelów, krzywa ROC oraz bootstrapowe przedziały ufności.
 
 \newpage
 # Tworzenie zmiennych objaśniających
