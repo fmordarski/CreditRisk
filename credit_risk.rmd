@@ -252,7 +252,9 @@ auc_t <- performance(ROCRpred_t, measure = "auc")
 auc_t <- auc_t@y.values[[1]]
 auc_t
 ```
+# bootstrapping
 
+Ostatnim elementem pracy jest wyznaczenie bootstrapowych przedziałów ufności. Do obliczeń przyjęto 90 - procentowy przedział ufności i przeprowadzono 1000 obserwacji.
 ```{r, echo=T, include=T}
 N <- length(data$default)  # how long will be our new sample
 M <- 1000 # how many times we will generate new sample
@@ -285,7 +287,8 @@ lower <- quantile(auc_vector, alpha / 2)
 
 upper <- quantile(auc_vector, 1 - (alpha / 2) )
 
-paste0('AUC = ', auc_t, ' and ', (1 - alpha) * 100,
-        '% bootstrapped confidence interval for AUC is between ', lower, ' and ', upper )
+paste0('AUC = ', auc_t, ' a ', (1 - alpha) * 100,
+        '% przedział ufności jest pomiędzy ', lower, ' a ', upper )
 
 ```
+Taki wynik nie daje niestety pełnej satysfakcji z wynaczenia przedziałów bootstrapowych. Można podejrzewać, że jest to spowodowane losowymi wartościami zmiennych.
