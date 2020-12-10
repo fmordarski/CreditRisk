@@ -19,6 +19,7 @@ library(moments)
 library(knitr)
 library(caret)
 library(ROCR)
+library(tictoc)
 knitr::opts_chunk$set(fig.width=6, fig.height=3.5, fig.align = "center", warning = F) 
 # paths
 #################################################
@@ -125,7 +126,7 @@ ggplot(data, aes(x = factor(car))) +
   theme_minimal()
 ```
 
-Następnie, została wygenerowana zmienna, określająca sektor gospodarki, w którym pracują klienci. Prawdopodobieństwo wystąpienia następujących sektorów [rolnictwo, przemysł, usługi] wśród zatrudnionych wynosi kolejno: [20%, 30%, 50%]. Poniżej przedstawiono histogram sektorów gospodarki. 
+Następnie, została wygenerowana zmienna porządkowa, określająca sektor gospodarki, w którym pracują klienci. Prawdopodobieństwo wystąpienia następujących sektorów [rolnictwo, przemysł, usługi] wśród zatrudnionych wynosi kolejno: [20%, 30%, 50%]. Poniżej przedstawiono histogram sektorów gospodarki. 
 
 ```{r, echo=F}
 # data$sector <- "Brak zatrudnienia"
@@ -184,8 +185,11 @@ kable(t(kurtozy(conti_win)),col.names = names(conti_win), caption="Wartości kur
 
 ```
 
-Można zauważyć znaczną poprawę rozkładów zmiennych, co pozytywnie wpłynie na dalszą analizę.
+Można zauważyć znaczną poprawę rozkładów tych dwóch zmiennych, co pozytywnie wpłynie na dalszą analizę.
 
+# Szacowanie parametrów modelu
+
+Pierwszym krokiem podczas szacowaniu modelu było podzielenie zbioru na dwa podzbiory: treningowy (3504 obserwacje) i testowy (1496 obserwacje).
 ```{r, echo=F}
 data$employed <- factor(data$employed)
 data$full_time <- factor(data$full_time)
@@ -197,21 +201,22 @@ test.set.index <- (runif(nrow(data)) < test_prop)
 test <- data[test.set.index, ]
 train <- data[!test.set.index, ]
 
-summary(train)
-summary(test)
-names(data)
-model <- glm(default ~ value_mortgage_win+value_nonmortgage_win+age+employed+full_time+
-               annual_income_win+single+kids+car+sector, family = binomial(link = 'logit'), data = train)
+```
+Ze względu na fakt, że zmienna objaśniana jest binarna, zdecydowano się na oszacowanie modelu logitowego. 
+```{r, echo=F}
+model <- glm(default ~ value_mortgage_win+value_nonmortgage_win+age+employed+full_time+annual_income_win+single+kids+car+sector, family = binomial(link = 'logit'), data = train)
 summary(model)
 ```
+Niestety żaden z regresorów nie ma istotnego wpływu na zmienną objaśnianą, co może być spowodowane losowymi wartościami zmiennych. W przypadku zmiennej sector=3 można zaobserwować wartości NA dla współczynników równania. Powodem tego jest fakt, że zmienna sector jest zmienną porządkową i przyjmuje 4 wartości: 0,1,2,3. Model estymując współczynniki zmiennych porządkowych najpierw rozbija każdą wartość na zmienną binarną, następnie pomija jedną z nich w modelu - w tym wypadku pominął sector=0. Istotna w tym wyjaśnieniu jest pewna zależność występująca w naszym zbiorze danych: zmienna sector przyjmuje wartość 0 wtedy i tylko wtedy gdy zmienna employed, opisująca czy dany pracownik jest zatrudniony, również przyjmuje wartość 0. Z tego powodu model nie tylko pominął zmienną sector0, ale również zagregował ją w zmiennej employed=0. W wyniku tego współczynniki zmiennej sector=3 nie mogą zostać wyestymowane, gdyż teraz toona jest wykluczoną wartością zmiennej porządkowej. 
 
-Oszacowano również drugi model, w którym zmieniliśmy założenie co do rozkładu składnika losowego. W wyniku tego, został oszacowany model probitowy.
+Oszacowano również drugi model, w którym zmieniliśmy założenie co do rozkładu składnika losowego. Zamiast transformacji logistycznej zastosowano odwrotność dystrybuanty rozkłądu normalnego W wyniku tego, został oszacowany model probitowy.
 
 ```{r, echo=F}
 model2 <- glm(default ~ value_mortgage_win+value_nonmortgage_win+age+employed+full_time+
                annual_income_win+single+kids+car+sector, family = binomial(link = 'probit'), data = train)
 summary(model2)
 ```
+Tutaj podobnie jak w przypadku estymacji modelu logitowego pojawiają się wartości NA przy współczynnikach zmiennej sektor=3.
 
 # Ewaluacja modelu
 
@@ -223,7 +228,7 @@ predict <- ifelse(predict<0.5, 0, 1)
 confusionMatrix(data=factor(predict), reference=factor(test$default))
 ```
 
-Następnie wygenerowano podobną tabelę kontyngencji dla drugiego modelu logitowego.
+Następnie wygenerowano podobną tabelę kontyngencji dla drugiego modelu - probitowego.
 
 ```{r, echo=F}
 predict <- predict(model2, type = 'response', newdata = test)
@@ -246,4 +251,41 @@ Powyższa krzywa obrazuje zdolność predykcyjną modelu dla różnych progów o
 auc_t <- performance(ROCRpred_t, measure = "auc")
 auc_t <- auc_t@y.values[[1]]
 auc_t
+```
+
+```{r, echo=T, include=T}
+N <- length(data$default)  # how long will be our new sample
+M <- 1000 # how many times we will generate new sample
+auc_vector <- c(1:M)  # starting values of AUC vector
+alpha <- 0.1  
+
+data$predict_boots <- predict(model, type = 'response', newdata = data)
+data$predict_boots <- ifelse(data$predict_boots<0.5, 0, 1)
+
+tic()
+
+for (i in 1:M){
+  
+    # 1 step - drawing rows from the sample with replacement
+    resample <- sample_n(data, N, replace = TRUE)
+
+    # 2 step - compute AUC for resample
+    # ROCR Curve
+    ROCRpred <- prediction(resample$predict_boots, resample$default)
+    ROCRperf <- performance(ROCRpred, 'tpr','fpr')
+    # AUC value
+    auc <- performance(ROCRpred, measure = "auc")
+    auc <- auc@y.values[[1]]
+    auc_vector[i] <- auc_t  # here are stored AUC values for each subsample
+    
+}
+
+toc()
+lower <- quantile(auc_vector, alpha / 2)
+
+upper <- quantile(auc_vector, 1 - (alpha / 2) )
+
+paste0('AUC = ', auc_t, ' and ', (1 - alpha) * 100,
+        '% bootstrapped confidence interval for AUC is between ', lower, ' and ', upper )
+
 ```
